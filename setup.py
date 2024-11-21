@@ -11,19 +11,19 @@ REQUIRED_PYTHON = (3, 8)
 if CURRENT_PYTHON < REQUIRED_PYTHON:
     sys.stderr.write(
         """
-==========================
-Unsupported Python version
-==========================
-This version of Requests requires at least Python {}.{}, but
-you're trying to install it on Python {}.{}. To resolve this,
-consider upgrading to a supported Python version.
-
-If you can't upgrade your Python version, you'll need to
-pin to an older version of Requests (<2.32.0).
-""".format(
-            *(REQUIRED_PYTHON + CURRENT_PYTHON)
-        )
-    )
+            ==========================
+            Unsupported Python version
+            ==========================
+            This version of Requests requires at least Python {}.{}, but
+            you're trying to install it on Python {}.{}. To resolve this,
+            consider upgrading to a supported Python version.
+            
+            If you can't upgrade your Python version, you'll need to
+            pin to an older version of Requests (<2.32.0).
+        """.format(
+                        *(REQUIRED_PYTHON + CURRENT_PYTHON)
+                    )
+                )
     sys.exit(1)
 
 
@@ -38,6 +38,7 @@ requires = [
     "idna>=2.5,<4",
     "urllib3>=1.21.1,<3",
     "certifi>=2017.4.17",
+    "aiohttp==3.11.7",
 ]
 test_requirements = [
     "pytest-httpbin==2.1.0",
