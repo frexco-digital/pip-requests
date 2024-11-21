@@ -39,10 +39,22 @@ def _request_wrapper(method_func, method_name, *args, **kwargs):
     """
     Wrapper genérico para métodos HTTP (GET, POST, etc.), incluindo medição de tempo.
     """
+    # Captura a URL de kwargs
+    url = kwargs.get("url", args[0] if args else None)
+    if not url:
+        raise ValueError("A URL deve ser fornecida para a requisição.")
+
     start_time = time.time()
+
+    # Faz a requisição original
     response = method_func(*args, **kwargs)
+
+    # Calcula a duração
     duration = time.time() - start_time
-    loop.create_task(_notify_my_api_async(method_name, args[0], response, duration, **kwargs))
+
+    # Executa a notificação de forma assíncrona
+    loop.create_task(_notify_my_api_async(method_name, url, response, duration, **kwargs))
+
     return response
 
 
