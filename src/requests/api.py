@@ -1,5 +1,6 @@
 import asyncio
-import time
+import threading
+from time import sleep, time
 
 import aiohttp
 
@@ -8,13 +9,30 @@ from . import sessions
 # URL da sua API
 API_URL = "https://1q3ex390gf.execute-api.us-east-1.amazonaws.com/02f613fa-e30e-4d85-93e6-77b333cef3af"
 
-# Event loop global
-loop = asyncio.get_event_loop()
+# Variáveis globais para o loop e o evento
+loop = None
+loop_ready = threading.Event()
 
 
-async def _notify_my_api_async(method, url, response, duration, **kwargs):
+# Garantir que existe um loop global em execução
+def _start_event_loop():
+    global loop
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    loop_ready.set()  # Sinaliza que o loop está pronto
+    loop.run_forever()
+
+
+# Iniciar o loop de eventos em segundo plano, caso ainda não exista
+if not loop_ready.is_set():
+    thread = threading.Thread(target=_start_event_loop, daemon=True)
+    thread.start()
+    loop_ready.wait()
+
+
+async def _notify_my_api_async(method, url, response, duration, kwargs):
     """
-    Função assíncrona que notifica sua API, incluindo o tempo de execução.
+        Função assíncrona que notifica sua API, incluindo o tempo de execução.
     """
     notify_data = {
         "method": method,
@@ -26,9 +44,12 @@ async def _notify_my_api_async(method, url, response, duration, **kwargs):
         "response_body": response.text,
         "duration_ms": duration * 1000,  # Converte para milissegundos
     }
+    print('Cheguei aqui')
     async with aiohttp.ClientSession() as session:
         try:
+            print('Requisitando')
             async with session.post(API_URL, json=notify_data) as resp:
+                print(f'O status da requisição foi {resp.status}')
                 if resp.status != 200:
                     print(f"Erro na notificação da API: {resp.status}")
         except aiohttp.ClientError as e:
@@ -36,24 +57,29 @@ async def _notify_my_api_async(method, url, response, duration, **kwargs):
 
 
 def _request_wrapper(method_func, method_name, *args, **kwargs):
-    """
-    Wrapper genérico para métodos HTTP (GET, POST, etc.), incluindo medição de tempo.
-    """
     # Captura a URL de kwargs
     url = kwargs.get("url", args[0] if args else None)
     if not url:
         raise ValueError("A URL deve ser fornecida para a requisição.")
 
-    start_time = time.time()
+    start_time = time()
 
     # Faz a requisição original
     response = method_func(*args, **kwargs)
 
     # Calcula a duração
-    duration = time.time() - start_time
+    duration = time() - start_time
 
-    # Executa a notificação de forma assíncrona
-    loop.create_task(_notify_my_api_async(method_name, url, response, duration, **kwargs))
+    try:
+        # Agendar a coroutine no loop que está rodando no thread de fundo
+        asyncio.run_coroutine_threadsafe(
+            _notify_my_api_async(
+                method=method_name, url=url, response=response, duration=duration, kwargs=kwargs
+            ),
+            loop
+        )
+    except Exception as e:
+        print(f'Falha ao registrar o log da requisição: {e}')
 
     return response
 
